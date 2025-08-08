@@ -70,4 +70,4 @@ if __name__ == "__main__":
     time.sleep(2)  # Give Flask time to start
     bot.run(TOKEN)
 
-Added Flask keep-alive server for Render
+
