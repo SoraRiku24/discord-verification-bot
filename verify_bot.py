@@ -3,8 +3,10 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
+import threading
+from flask import Flask
 
-# Load environment variables from .env
+# Load environment variables from .env or Render's Environment
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -14,6 +16,17 @@ VERIFIED_ROLE_ID = 1403065664788234275
 WAITING_ROOM_ROLE_ID = 1403065666243657878
 # ====================
 
+# Create a small Flask app to keep Render Web Service alive
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Bot is running!"
+
+def run_web():
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+# Discord bot setup
 intents = discord.Intents.default()
 intents.members = True
 
@@ -50,4 +63,11 @@ async def verify(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"⚠ An error occurred: {e}", ephemeral=True)
 
-bot.run(TOKEN)
+# Run both the web server and bot
+if __name__ == "__main__":
+    threading.Thread(target=run_web).start()
+    import time
+    time.sleep(2)  # Give Flask time to start
+    bot.run(TOKEN)
+
+Added Flask keep-alive server for Render
