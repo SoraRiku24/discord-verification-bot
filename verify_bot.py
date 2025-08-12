@@ -62,11 +62,7 @@ def run_web():
 intents = discord.Intents.none()
 intents.guilds = True
 intents.members = True
-<<<<<<< HEAD
-intents.message_content = True  # add this line
-=======
-intents.message_content = True  # optional; you enabled it already
->>>>>>> d007589 (Add early role auto-assign and /early_remaining command)
+intents.message_content = True  # optional; you've enabled it in the dev portal
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -257,7 +253,6 @@ async def start_with_backoff():
             break
         except Exception as e:
             msg = getattr(e, "message", str(e))
-            # If Cloudflare/429 is returned, you could increase delay here
             print(f"❌ Login/start failed: {msg} — retrying in {delay}s")
             await asyncio.sleep(delay)
             delay = min(delay + 5, 60)  # 5s, 10s, … up to 60s
