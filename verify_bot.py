@@ -60,6 +60,7 @@ def run_web():
 intents = discord.Intents.none()
 intents.guilds = True
 intents.members = True
+intents.message_content = True  # add this line
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
