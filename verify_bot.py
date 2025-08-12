@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from flask import Flask
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 # =========================
@@ -35,6 +36,7 @@ EARLY_CAP             = _env_int("EARLY_CAP",             200)                  
 # Logging
 # =========================
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("verifybot")
 try:
     discord.utils.setup_logging(level=logging.INFO)  # discord.py v2+
 except Exception:
@@ -60,7 +62,11 @@ def run_web():
 intents = discord.Intents.none()
 intents.guilds = True
 intents.members = True
+<<<<<<< HEAD
 intents.message_content = True  # add this line
+=======
+intents.message_content = True  # optional; you enabled it already
+>>>>>>> d007589 (Add early role auto-assign and /early_remaining command)
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -72,6 +78,17 @@ async def on_connect():
 @bot.event
 async def on_ready():
     print(f">>> READY as {bot.user} ({bot.user.id}) in {len(bot.guilds)} guild(s)")
+    # Log current early-role usage on startup
+    guild = bot.get_guild(GUILD_ID)
+    if guild and EARLY_ROLE_ID:
+        early_role = guild.get_role(EARLY_ROLE_ID)
+        if early_role:
+            logger.info(
+                f"[early] Current holders: {len(early_role.members)}/{EARLY_CAP} "
+                f"for role '{early_role.name}'."
+            )
+        else:
+            logger.warning("[early] Early role ID set, but role not found in guild.")
 
 @bot.event
 async def on_disconnect():
@@ -93,20 +110,31 @@ async def current_early_count(guild: discord.Guild, early_role: Optional[discord
     return len(early_role.members)  # cached, fast
 
 async def try_grant_early_role(member: discord.Member, early_role: Optional[discord.Role]):
-    """Grant EARLY_ROLE_ID if under the EARLY_CAP."""
+    """Grant EARLY_ROLE_ID if under the EARLY_CAP, with detailed logs."""
     if early_role is None:
+        logger.warning("[early] EARLY_ROLE_ID not set or role not found.")
         return
     try:
         if early_role in member.roles:
+            logger.info(f"[early] {member} already has {early_role.name}.")
             return
+
         count = await current_early_count(member.guild, early_role)
         if (EARLY_CAP or 0) and count >= EARLY_CAP:
+            logger.info(f"[early] Cap reached ({count}/{EARLY_CAP}). Did not grant {early_role.name} to {member}.")
             return
+
         await member.add_roles(early_role, reason=f"Early member bonus (first {EARLY_CAP})")
+        # Re-count for log clarity
+        new_count = len(early_role.members)
+        logger.info(
+            f"[early] Granted {early_role.name} to {member} "
+            f"({new_count}/{EARLY_CAP} used; {max((EARLY_CAP or 0) - new_count, 0)} remaining)."
+        )
     except discord.Forbidden:
-        print("[early] Missing permissions to add early role. Check Manage Roles & role order.")
+        logger.error("[early] Missing permissions to add early role. Check Manage Roles & role order.")
     except Exception as e:
-        print(f"[early] Failed to grant early role: {e}")
+        logger.exception(f"[early] Failed to grant early role: {e}")
 
 # =========================
 # Command sync on startup
@@ -188,6 +216,30 @@ async def verify(interaction: discord.Interaction):
                 )
         except Exception:
             pass
+
+# =========================
+# Admin command: /early_remaining
+# =========================
+@bot.tree.command(
+    name="early_remaining",
+    description="Show how many Xeno (early) slots are left",
+    guild=discord.Object(id=GUILD_ID),
+)
+@app_commands.checks.has_permissions(manage_guild=True)
+async def early_remaining(interaction: discord.Interaction):
+    guild = interaction.guild
+    early_role = guild.get_role(EARLY_ROLE_ID) if EARLY_ROLE_ID else None
+    if not early_role:
+        await interaction.response.send_message(
+            "❌ Early role not configured or missing.", ephemeral=True
+        )
+        return
+    used = len(early_role.members)
+    remaining = max((EARLY_CAP or 0) - used, 0)
+    await interaction.response.send_message(
+        f"🧮 **{early_role.name}**: {used}/{EARLY_CAP} used — **{remaining}** remaining.",
+        ephemeral=True,
+    )
 
 # =========================
 # Gentle login backoff
